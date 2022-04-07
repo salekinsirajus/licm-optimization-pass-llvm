@@ -172,6 +172,9 @@ static llvm::Statistic LICMNoPreheader = {"", "LICMNoPreheader", "absence of pre
 
 static void LoopInvariantCodeMotion(Module *) {
     // Implement this function
-  
+    NumLoops = 0;
+    LICMBasic = 0;
+    LICMNoPreheader = 0;
+    LICMLoadHoist = 0;  
 }
 
