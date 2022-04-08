@@ -23,6 +23,7 @@
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 using namespace llvm;
 
@@ -169,12 +170,41 @@ static llvm::Statistic LICMBasic = {"", "LICMBasic", "basic loop invariant instr
 static llvm::Statistic LICMLoadHoist = {"", "LICMLoadHoist", "loop invariant load instructions"};
 static llvm::Statistic LICMNoPreheader = {"", "LICMNoPreheader", "absence of preheader prevents optimization"};
 
+/* Functionality Implementation */
 
-static void LoopInvariantCodeMotion(Module *) {
-    // Implement this function
-    NumLoops = 0;
-    LICMBasic = 0;
-    LICMNoPreheader = 0;
-    LICMLoadHoist = 0;  
+static void OptimizeLoop(Loop *L){
+    BasicBlock *PH = L->getLoopPreheader();
+    if (PH==NULL){
+        LICMNoPreheader++;
+    }
+
+    return;
 }
 
+static void RunLICMBasic(Module *M){
+    DominatorTreeBase<BasicBlock,false> *DT=nullptr;
+
+    for (Module::iterator func = M->begin(); func != M->end(); ++func){
+        Function &F = *func;
+        for (Function::iterator fi = func->begin(); fi != func->end(); ++fi){
+            LoopInfoBase<BasicBlock,Loop> *LI = new LoopInfoBase<BasicBlock,Loop>();
+            DT = new DominatorTreeBase<BasicBlock,false>();
+
+            DT->recalculate(F); // dominance for Function, F
+            LI->analyze(*DT); // calculate loop info
+
+            for(auto li: *LI) {
+                OptimizeLoop(li);
+                //li is a Loop*, consider each one
+                //for (auto bb: li->blocks()) {
+                // get each basic block in the loop
+                //}
+            }
+        }
+    }
+}
+
+static void LoopInvariantCodeMotion(Module *M) {
+    // Implement this function
+    RunLICMBasic(M);
+}
