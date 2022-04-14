@@ -191,6 +191,23 @@ static void OptimizeLoop2(Loop *L){
             }
             worklist.insert(&*i);
         }
+
+        //work with the worklist;
+        while (worklist.size() > 0){
+            // pull one instruction out of worklist
+            // see if any of its operands are loopinvariant
+            // if not remove them
+            Instruction* i = *worklist.begin();
+            worklist.erase(i);
+            if (L->hasLoopInvariantOperands(i)){
+                L->makeLoopInvariant(i, changed);
+                if (changed) {
+                    LICMBasic++;
+                    changed = false;
+                    continue;
+                }
+            }
+        }
     }
 }
 
@@ -231,7 +248,7 @@ static void OptimizeLoop(Loop *L){
                     if (changed) {
                         LICMBasic++;
                         changed = false;
-                        break; 
+                        continue; //break; 
                     }
                 }
             }
@@ -260,7 +277,7 @@ static void RunLICMBasic(Module *M){
 
         for(auto li: *LI) {
             NumLoops++;
-            OptimizeLoop(li);
+            OptimizeLoop2(li);
         }
     }
 }
