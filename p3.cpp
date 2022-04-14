@@ -24,6 +24,8 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/InstIterator.h"
+
 
 using namespace llvm;
 
@@ -172,39 +174,99 @@ static llvm::Statistic LICMNoPreheader = {"", "LICMNoPreheader", "absence of pre
 
 /* Functionality Implementation */
 
+static void OptimizeLoop2(Loop *L){
+    BasicBlock *PH = L->getLoopPreheader();
+    if (PH==NULL){
+        LICMNoPreheader++;
+        return;
+    }
+
+    bool changed=false;
+    std::set<Instruction*> worklist;
+
+    for (BasicBlock *bb: L->blocks()){
+        for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
+            if (isa<LoadInst>(&*i) || isa<StoreInst>(&*i)){
+                continue;
+            }
+            worklist.insert(&*i);
+        }
+    }
+}
+
 static void OptimizeLoop(Loop *L){
     BasicBlock *PH = L->getLoopPreheader();
     if (PH==NULL){
         LICMNoPreheader++;
+        printf("No LICM Preheader\n");
+        return;
     }
+
+    //FIXME: the second parameter is not necessarily correct!
+    bool changed=false;
+
+    for (BasicBlock *bb: L->blocks()){
+
+        for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
+                Instruction& ins = *i;
+                changed = false;
+
+                if (isa<LoadInst>(ins) || isa<StoreInst>(ins)){
+                    //TODO:implement 566-specific optimization here
+                    continue;
+                }
+                
+                bool allOperandsLoopInvariant = true; 
+                for (auto &op: ins.operands()){
+                    if (!L->isLoopInvariant(op)){
+                         allOperandsLoopInvariant = false;
+                         break;
+                    }
+                }
+
+                if (allOperandsLoopInvariant){
+                    //changed is passed as address (&address)
+                    //FIXME: this might be an issue
+                    L->makeLoopInvariant(&ins, changed);
+                    if (changed) {
+                        LICMBasic++;
+                        changed = false;
+                        break; 
+                    }
+                }
+            }
+        }
 
     return;
 }
 
 static void RunLICMBasic(Module *M){
-    DominatorTreeBase<BasicBlock,false> *DT=nullptr;
 
     for (Module::iterator func = M->begin(); func != M->end(); ++func){
         Function &F = *func;
-        for (Function::iterator fi = func->begin(); fi != func->end(); ++fi){
-            LoopInfoBase<BasicBlock,Loop> *LI = new LoopInfoBase<BasicBlock,Loop>();
-            DT = new DominatorTreeBase<BasicBlock,false>();
+        if (func->begin() == func->end()){
+        //if (F.size() < 1){
+            continue;
+        }
 
-            DT->recalculate(F); // dominance for Function, F
-            LI->analyze(*DT); // calculate loop info
+        DominatorTreeBase<BasicBlock,false> *DT=nullptr;
+        LoopInfoBase<BasicBlock,Loop> *LI = new LoopInfoBase<BasicBlock,Loop>();
+        DT = new DominatorTreeBase<BasicBlock,false>();
 
-            for(auto li: *LI) {
-                OptimizeLoop(li);
-                //li is a Loop*, consider each one
-                //for (auto bb: li->blocks()) {
-                // get each basic block in the loop
-                //}
-            }
+        DT->recalculate(F); // dominance for Function, F
+        //DT->print(errs());
+        LI->analyze(*DT); // calculate loop info
+        //LI->print(errs());
+
+        for(auto li: *LI) {
+            NumLoops++;
+            OptimizeLoop(li);
         }
     }
 }
 
 static void LoopInvariantCodeMotion(Module *M) {
     // Implement this function
+    LICMBasic++; //Checking if this thing is even working
     RunLICMBasic(M);
 }
