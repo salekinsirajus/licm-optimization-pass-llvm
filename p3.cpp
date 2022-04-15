@@ -174,6 +174,18 @@ static llvm::Statistic LICMNoPreheader = {"", "LICMNoPreheader", "absence of pre
 
 /* Functionality Implementation */
 
+static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
+    /* Alternative implementation of hasLoopInvariantOperands
+     * */
+    for (auto &op: I->operands()){
+        if (!L->isLoopInvariant(op)){
+             return false; 
+        }
+    }
+
+    return true;
+}
+
 static void OptimizeLoop2(Loop *L){
     BasicBlock *PH = L->getLoopPreheader();
     if (PH==NULL){
@@ -199,7 +211,8 @@ static void OptimizeLoop2(Loop *L){
             // if not remove them
             Instruction* i = *worklist.begin();
             worklist.erase(i);
-            if (L->hasLoopInvariantOperands(i)){
+            //if (L->hasLoopInvariantOperands(i)){
+            if (AreAllOperandsLoopInvaraint(L, i)){
                 L->makeLoopInvariant(i, changed);
                 if (changed) {
                     LICMBasic++;
