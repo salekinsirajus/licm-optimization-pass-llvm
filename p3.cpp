@@ -198,6 +198,7 @@ static void OptimizeLoop2(Loop *L){
 
     for (BasicBlock *bb: L->blocks()){
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
+            // doing it later on?
             if (isa<LoadInst>(&*i) || isa<StoreInst>(&*i)){
                 continue;
             }
@@ -206,6 +207,7 @@ static void OptimizeLoop2(Loop *L){
 
         //work with the worklist;
         while (worklist.size() > 0){
+            changed = false;
             // pull one instruction out of worklist
             // see if any of its operands are loopinvariant
             // if not remove them
@@ -216,7 +218,6 @@ static void OptimizeLoop2(Loop *L){
                 L->makeLoopInvariant(i, changed);
                 if (changed) {
                     LICMBasic++;
-                    changed = false;
                     continue;
                 }
             }
@@ -297,6 +298,5 @@ static void RunLICMBasic(Module *M){
 
 static void LoopInvariantCodeMotion(Module *M) {
     // Implement this function
-    LICMBasic++; //Checking if this thing is even working
     RunLICMBasic(M);
 }
