@@ -173,6 +173,7 @@ static llvm::Statistic LICMNoPreheader = {"", "LICMNoPreheader", "absence of pre
 static llvm::Statistic NumLoopsNoStore = {"", "NumLoopsNoStore", "subset of loops that has no Store instructions"};
 static llvm::Statistic NumLoopsNoLoad = {"", "NumLoopsNoLoad", "subset of loops that has no Load instructions"};
 static llvm::Statistic NumLoopsNoStoreWithLoad = {"", "NumLoopsNoStoreWithLoad", "subset of loops with no stores that also have at least one load."};
+static llvm::Statistic NumLoopsWithCall = {"", "NumLoopsWithCall", "subset of loops that has a call instructions"};
 
 /* Functionality Implementation */
 
@@ -195,6 +196,8 @@ static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
         NumLoopsNoLoad++;
     } else if (!hasStore){
         NumLoopsNoStore++;
+    } else if (hasCall){
+        NumLoopsWithCall++;
     }
 }
 
@@ -228,6 +231,9 @@ static void OptimizeLoop2(Loop *L){
             }
             if (isa<StoreInst>(&*i)){
                 hasStore = true;
+            }
+            if (isa<CallInst>(&*i)){
+                hasCall = true;
             }
             worklist.insert(&*i);
         }
