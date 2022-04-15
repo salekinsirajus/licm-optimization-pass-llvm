@@ -167,10 +167,12 @@ static void print_csv_file(std::string outputfile)
 }
 
 static llvm::Statistic NumLoops = {"", "NumLoops", "number of loops analyzed"};
-// add other stats
 static llvm::Statistic LICMBasic = {"", "LICMBasic", "basic loop invariant instructions"};
 static llvm::Statistic LICMLoadHoist = {"", "LICMLoadHoist", "loop invariant load instructions"};
 static llvm::Statistic LICMNoPreheader = {"", "LICMNoPreheader", "absence of preheader prevents optimization"};
+static llvm::Statistic NumLoopsNoStore = {"", "NumLoopsNoStore", "subset of loops that has no Store instructions"};
+static llvm::Statistic NumLoopsNoLoad = {"", "NumLoopsNoLoad", "subset of loops that has no Load instructions"};
+static llvm::Statistic NumLoopsNoStoreWithLoad = {"", "NumLoopsNoStoreWithLoad", "subset of loops with no stores that also have at least one load."};
 
 /* Functionality Implementation */
 
@@ -186,14 +188,34 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
     return true;
 }
 
+static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
+    if (!hasStore && hasLoad){
+        NumLoopsNoStoreWithLoad++;
+    } else if (!hasLoad){
+        NumLoopsNoLoad++;
+    } else if (!hasStore){
+        NumLoopsNoStore++;
+    }
+}
+
 static void OptimizeLoop2(Loop *L){
+    NumLoops++;
+
     BasicBlock *PH = L->getLoopPreheader();
     if (PH==NULL){
         LICMNoPreheader++;
         return;
     }
 
-    bool changed=false;
+    //recursive call to optimize all the subloops
+    for (auto subloop: L->getSubLoops()){
+        OptimizeLoop2(subloop);
+    }
+
+    bool changed  = false;
+    bool hasLoad  = false;
+    bool hasStore = false;
+    bool hasCall  = false;
     std::set<Instruction*> worklist;
 
     for (BasicBlock *bb: L->blocks()){
@@ -201,11 +223,15 @@ static void OptimizeLoop2(Loop *L){
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
             // doing it later on?
 
-            if (isa<LoadInst>(&*i) || isa<StoreInst>(&*i)){
-                //continue;
+            if (isa<LoadInst>(&*i)){
+                hasLoad = true;
+            }
+            if (isa<StoreInst>(&*i)){
+                hasStore = true;
             }
             worklist.insert(&*i);
         }
+        updateStats(hasLoad, hasStore, hasCall);
 
         //work with the worklist;
         while (worklist.size() > 0){
@@ -253,11 +279,6 @@ static void RunLICMBasic(Module *M){
         //LI->print(errs());
 
         for(auto li: *LI) {
-            NumLoops++;
-            for (auto sl: li->getSubLoops()){
-                NumLoops++;
-                OptimizeLoop2(sl);
-            }
             OptimizeLoop2(li);
         }
     }
