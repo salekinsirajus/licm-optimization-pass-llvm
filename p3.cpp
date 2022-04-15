@@ -255,6 +255,9 @@ static void RunLICMBasic(Module *M){
         for(auto li: *LI) {
             NumLoops++;
             OptimizeLoop2(li);
+            for (auto sl: li->getSubLoops()){
+                OptimizeLoop2(sl);
+            }
         }
     }
 }
