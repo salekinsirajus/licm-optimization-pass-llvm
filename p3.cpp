@@ -197,10 +197,12 @@ static void OptimizeLoop2(Loop *L){
     std::set<Instruction*> worklist;
 
     for (BasicBlock *bb: L->blocks()){
+        //printf("\n========================BEGIN BB===========================\n");
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
             // doing it later on?
+
             if (isa<LoadInst>(&*i) || isa<StoreInst>(&*i)){
-                continue;
+                //continue;
             }
             worklist.insert(&*i);
         }
@@ -213,62 +215,23 @@ static void OptimizeLoop2(Loop *L){
             // if not remove them
             Instruction* i = *worklist.begin();
             worklist.erase(i);
+            //i->print(errs());
+
             //if (L->hasLoopInvariantOperands(i)){
             if (AreAllOperandsLoopInvaraint(L, i)){
                 L->makeLoopInvariant(i, changed);
                 if (changed) {
+                    //printf(" <-- succssfully moved out.\n");
+                    //i->print(errs());
                     LICMBasic++;
                     continue;
                 }
+            //printf(" <-- considered, but no.\n");
             }
+            //printf(" <-- did not consider.\n");
         }
+        //printf("\n========================END   BB===========================\n");
     }
-}
-
-static void OptimizeLoop(Loop *L){
-    BasicBlock *PH = L->getLoopPreheader();
-    if (PH==NULL){
-        LICMNoPreheader++;
-        printf("No LICM Preheader\n");
-        return;
-    }
-
-    //FIXME: the second parameter is not necessarily correct!
-    bool changed=false;
-
-    for (BasicBlock *bb: L->blocks()){
-
-        for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
-                Instruction& ins = *i;
-                changed = false;
-
-                if (isa<LoadInst>(ins) || isa<StoreInst>(ins)){
-                    //TODO:implement 566-specific optimization here
-                    continue;
-                }
-                
-                bool allOperandsLoopInvariant = true; 
-                for (auto &op: ins.operands()){
-                    if (!L->isLoopInvariant(op)){
-                         allOperandsLoopInvariant = false;
-                         break;
-                    }
-                }
-
-                if (allOperandsLoopInvariant){
-                    //changed is passed as address (&address)
-                    //FIXME: this might be an issue
-                    L->makeLoopInvariant(&ins, changed);
-                    if (changed) {
-                        LICMBasic++;
-                        changed = false;
-                        continue; //break; 
-                    }
-                }
-            }
-        }
-
-    return;
 }
 
 static void RunLICMBasic(Module *M){
