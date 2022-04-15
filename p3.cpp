@@ -254,10 +254,11 @@ static void RunLICMBasic(Module *M){
 
         for(auto li: *LI) {
             NumLoops++;
-            OptimizeLoop2(li);
             for (auto sl: li->getSubLoops()){
+                NumLoops++;
                 OptimizeLoop2(sl);
             }
+            OptimizeLoop2(li);
         }
     }
 }
@@ -265,5 +266,6 @@ static void RunLICMBasic(Module *M){
 static void LoopInvariantCodeMotion(Module *M) {
     // Implement this function
     LICMLoadHoist++; //get rid of the unused warning on autograder
+    LICMLoadHoist--; //not polluting the stats TODO later
     RunLICMBasic(M);
 }
