@@ -201,9 +201,12 @@ static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
     }
 }
 
-static void OptimizeLoop2(Loop *L){
+static void OptimizeLoop2(LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
     NumLoops++;
-
+   
+    //FIXME: THIS IS PART OF THE LOOPINFOBASE!
+    //Update: looks like everywhere in LLVM it is used based off of the Loop
+    //object. So we will leave it like this until things break
     BasicBlock *PH = L->getLoopPreheader();
     if (PH==NULL){
         LICMNoPreheader++;
@@ -212,7 +215,7 @@ static void OptimizeLoop2(Loop *L){
 
     //recursive call to optimize all the subloops
     for (auto subloop: L->getSubLoops()){
-        OptimizeLoop2(subloop);
+        OptimizeLoop2(LIBase, subloop);
     }
 
     bool changed, hasLoad, hasStore, hasCall;
@@ -222,8 +225,6 @@ static void OptimizeLoop2(Loop *L){
         //printf("\n========================BEGIN BB===========================\n");
         changed  = hasLoad  = hasStore = hasCall  = false;
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
-            // doing it later on?
-
             if (isa<LoadInst>(&*i)){
                 hasLoad = true;
             }
@@ -283,7 +284,7 @@ static void RunLICMBasic(Module *M){
         //LI->print(errs());
 
         for(auto li: *LI) {
-            OptimizeLoop2(li);
+            OptimizeLoop2(LI, li);
         }
     }
 }
