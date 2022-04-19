@@ -177,6 +177,16 @@ static llvm::Statistic NumLoopsWithCall = {"", "NumLoopsWithCall", "subset of lo
 
 /* Functionality Implementation */
 
+static bool IsInstructionInLoop(Loop* L, Instruction* I){
+    /*Only checks whether this Loop contains this instruction. Does
+     * not go any level down*/
+    if (L->contains(I)){
+        return true;
+    }
+
+    return false;
+}
+
 static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
     /* Alternative implementation of hasLoopInvariantOperands
      * */
@@ -255,6 +265,17 @@ static void OptimizeLoop2(LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
                     //printf(" <-- succssfully moved out.\n");
                     //i->print(errs());
                     LICMBasic++;
+                    // Examine it's uses
+                    for (auto U: i->users()){
+                        if (auto used_inst = dyn_cast<Instruction>(U)){
+                            if (IsInstructionInLoop(L, used_inst)){
+                                printf("Added instruction to worklist\n");
+                                std::set<Instruction*>::iterator it = worklist.end();
+                                worklist.insert(it, used_inst);
+                            }
+                        }
+                    }
+                    // Append its uses to the worklist
                     continue;
                 }
             //printf(" <-- considered, but no.\n");
