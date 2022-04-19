@@ -215,14 +215,12 @@ static void OptimizeLoop2(Loop *L){
         OptimizeLoop2(subloop);
     }
 
-    bool changed  = false;
-    bool hasLoad  = false;
-    bool hasStore = false;
-    bool hasCall  = false;
+    bool changed, hasLoad, hasStore, hasCall;
     std::set<Instruction*> worklist;
 
     for (BasicBlock *bb: L->blocks()){
         //printf("\n========================BEGIN BB===========================\n");
+        changed  = hasLoad  = hasStore = hasCall  = false;
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
             // doing it later on?
 
