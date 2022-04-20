@@ -258,16 +258,16 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
     }
 
     bool no_store_in_loop = NoPossibleStoresToAddressInLoop(L, LoadAddress);
-    //printf("Result of NoPossibleStoresToAddressInLoop: %d\n", no_store_in_loop);
+
     if (isa<GlobalVariable>(LoadAddress) && (no_store_in_loop)){
         //return false;
-        //FIXME: there is a segmentation fault
         return true;
     }
 
-    if (isa<AllocaInst>(LoadAddress)){
+    // Case 2: WIP
+    if (isa<AllocaInst>(LoadAddress) && !L->contains(dyn_cast<Instruction>(LoadAddress)) && no_store_in_loop){
         //to be implemented
-        return false;
+        return true;
     }
 
     // SEGFAULT CULPRIT!
