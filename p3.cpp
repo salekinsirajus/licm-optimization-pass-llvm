@@ -283,11 +283,9 @@ static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
 }
 
 static bool NotALoadOrStore(Instruction* I){
-    //FIXME: only LoadInst causes issue
     if (isa<LoadInst>(I)){
         return false;
     }
-    
     if (isa<StoreInst>(I)){
         return false;
     }
