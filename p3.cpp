@@ -230,11 +230,17 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
         for (auto &i: *bb){
             if (isa<StoreInst>(i)){
                 // This is the least careful approeach
-                if (LoadAddress == i.getOperand(1)){
-                    i.print(errs());
+                Value *addr_of_store = i.getOperand(1);
+                if (LoadAddress == addr_of_store){
+                    //i.print(errs());
                     return false;
-                } // for store 
-            }
+                } 
+                // different address - if it's neither an alloca nor a global
+                // varible it could be loading to that address
+                else if (!isa<AllocaInst>(addr_of_store) && !isa<GlobalVariable>(addr_of_store)){
+                    return false;
+                }
+           }
         }
     }
 
