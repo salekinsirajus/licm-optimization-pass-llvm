@@ -228,12 +228,14 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
 static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAddress, bool loopHasStore){
     /* Determines whether an instruction can be moved out of a loop
      * */
+
+    // DONE - Case 1
     if (I->isVolatile()){
         return false;
     }
 
     Instruction* load_address_inst = dyn_cast<Instruction>(LoadAddress);
-    
+
     if (isa<GlobalVariable>(LoadAddress)){
         //no possible stores to addr in L
         for(auto U : LoadAddress->users()){  // U is of type User*
