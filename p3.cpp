@@ -351,7 +351,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
                     Value* addr = i->getOperand(0); // address for Load instruction
                     if (CanMoveOutofLoop(f, L, i, addr, loopContainsStore)){
                         
-                        //hoistInstructionToPreheader(i, PH);
+                        hoistInstructionToPreheader(i, PH);
                         LICMLoadHoist++;
                         //Move to PH
                     } 
