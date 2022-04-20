@@ -181,7 +181,7 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
     /* Alternative implementation of hasLoopInvariantOperands
      * */
     for (auto &op: I->operands()){
-        if (!L->isLoopInvariant(op)){
+        if (!L->isLoopInvariant(op) && !isa<Constant>(op)){
              return false; 
         }
     }
