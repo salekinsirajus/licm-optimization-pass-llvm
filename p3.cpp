@@ -224,17 +224,26 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
     return true;
 }
 
-static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
+static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress, Instruction* OriginalLoad){
     //no possible stores to addr in L
     for (auto *bb: L->blocks()){
         for (auto &i: *bb){
             if (isa<StoreInst>(i)){
                 // This is the least careful approeach
                 if (LoadAddress == i.getOperand(1)){
-                    i.print(errs());
+                    //i.print(errs());
                     return false;
                 } // for store 
-            }
+            } else if (isa<LoadInst>(i)){  //for loads - I am really not sure if this is too constrictiong
+                                          //but it should help
+                //if (*&i == OriginalLoad){continue;} //FIXME: w/o this every
+                //instruction will be skipped
+                if (i.getOperand(0) == LoadAddress){
+                    if (!isa<AllocaInst>(i) && !isa<GlobalVariable>(i)){
+                        return false;
+                    }
+                }
+           }
         }
     }
 
@@ -251,7 +260,7 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return false;
     }
 
-    bool no_store_in_loop = NoPossibleStoresToAddressInLoop(L, LoadAddress);
+    bool no_store_in_loop = NoPossibleStoresToAddressInLoop(L, LoadAddress, I);
     //printf("Result of NoPossibleStoresToAddressInLoop: %d\n", no_store_in_loop);
     if (isa<GlobalVariable>(LoadAddress) && (no_store_in_loop)){
         //return false;
