@@ -92,6 +92,7 @@ int main(int argc, char **argv) {
     if (M.get() == 0)
     {
         Err.print(argv[0], errs());
+        //FIXME: there is a segmentation fault
         return 1;
     }
 
@@ -180,25 +181,15 @@ static llvm::Statistic NumLoopsWithCall = {"", "NumLoopsWithCall", "subset of lo
 
 static void hoistInstructionToPreheader(Instruction* I, BasicBlock* PreHeader){
     /* Move an instruction to the PreHeader*/
-    printf("=============START=================\n");
-    printf("Moving an instruction to preheader\n");
-    I->print(errs());
-    printf("\n");
-    PreHeader->print(errs());
-    printf("\n");
-    printf("=============END====================\n");
     Instruction *dst = PreHeader->getTerminator();
     I->moveBefore(dst);
-    printf("After Move preheader\n");
-    PreHeader->print(errs());
-    printf("****************** DONE ************\n");
 }
 
 static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
     /* Alternative implementation of hasLoopInvariantOperands
      * */
     for (auto &op: I->operands()){
-        if (!L->isLoopInvariant(op) && !isa<Constant>(op)){
+        if (!L->isLoopInvariant(op)){// && !isa<Constant>(op)){
              return false;
         }
     }
@@ -224,14 +215,9 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
 
     DT->recalculate(*F);
     for (auto *bb: ExitBlocks){
-        printf("exit block\n"); 
-        //bb->print(errs());
         //bool result = DT->dominates(i, bb);
         bool result = DT->dominates(i->getParent(), bb);
-        printf("result of dominates check: %d\n", result);
-
         if (!result){
-            printf("SHOULD ABORT!");
             return false;
         }
     }
@@ -243,28 +229,40 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
     /* Determines whether an instruction can be moved out of a loop
      * */
     if (I->isVolatile()){
-        printf("volatile load. cant move\n");
         return false;
     }
 
-    auto *LI = dyn_cast<LoadInst>(I->getOperand(0));
-    if (isa<GlobalVariable>(LoadAddress) || isa<AllocaInst>(LoadAddress)){
-        //&& (isa<Constant>(LoadAddress))
+    Instruction* load_address_inst = dyn_cast<Instruction>(LoadAddress);
+    
+    if (isa<GlobalVariable>(LoadAddress)){
         //no possible stores to addr in L
-        //addr is a GlobalVariable and there are no possible stores to addr in L)
-        printf("is a global variable");
-        return true;
+        for(auto U : LoadAddress->users()){  // U is of type User*
+            if (auto InsThatUsesThisLoad = dyn_cast<Instruction>(U)){
+                //if (L->contains(InsThatUsesThisLoad) && isa<StoreInst>(InsThatUsesThisLoad)){
+                if (isa<StoreInst>(InsThatUsesThisLoad)){
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        return false;
+        //FIXME: there is a segmentation fault
+        //return true;
     }
 
-    Instruction* load_address_inst = dyn_cast<Instruction>(LoadAddress);
-    if (AreAllOperandsLoopInvaraint(L, load_address_inst) && !loopHasStore &&
+    if (isa<AllocaInst>(LoadAddress)){
+        //to be implemented
+        return false;
+    }
+
+    if (AreAllOperandsLoopInvaraint(L, load_address_inst) && !loopHasStore && 
         dominatesLoopExit(F, L, LoadAddress)
         ){
-        printf("third case matches..\n");
-        return true;
-    } else {
-        printf("Did not match third case.\n");
-    }
+
+        return false;
+    } 
 
     return false;
 }
@@ -279,6 +277,18 @@ static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
     } else if (hasCall){
         NumLoopsWithCall++;
     }
+}
+
+static bool NotALoadOrStore(Instruction* I){
+    //FIXME: only LoadInst causes issue
+    if (isa<LoadInst>(I)){
+        return false;
+    }
+    
+    if (isa<StoreInst>(I)){
+        return false;
+    }
+    return true;
 }
 
 static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
@@ -323,12 +333,14 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             changed = false;
             Instruction* i = *worklist.begin();
             worklist.erase(i);
-
-            if (AreAllOperandsLoopInvaraint(L, i)){
-                L->makeLoopInvariant(i, changed);
-                if (changed) {
-                    LICMBasic++;
-                    continue;
+            
+            if (NotALoadOrStore(i)){
+                if (AreAllOperandsLoopInvaraint(L, i)){
+                    L->makeLoopInvariant(i, changed);
+                    if (changed) {
+                        LICMBasic++;
+                        continue;
+                    }
                 }
             }
             else {
@@ -336,13 +348,11 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
                     //Implement LoadHoist
                     Value* addr = i->getOperand(0); // address for Load instruction
                     if (CanMoveOutofLoop(f, L, i, addr, loopContainsStore)){
-                        printf("Time to move it out.");
-                        hoistInstructionToPreheader(i, PH);
+                        
+                        //hoistInstructionToPreheader(i, PH);
                         LICMLoadHoist++;
                         //Move to PH
-                    } else {
-                        printf("CanNotMoveOutofLoop \n");
-                    }
+                    } 
                 }
             }
         }
@@ -363,9 +373,7 @@ static void RunLICMBasic(Module *M){
         DT = new DominatorTreeBase<BasicBlock,false>();
 
         DT->recalculate(F); // dominance for Function, F
-        //DT->print(errs());
         LI->analyze(*DT); // calculate loop info
-        //LI->print(errs());
 
         for(auto li: *LI) {
             OptimizeLoop2(&F, LI, li);
