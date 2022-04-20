@@ -189,7 +189,7 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
     /* Alternative implementation of hasLoopInvariantOperands
      * */
     for (auto &op: I->operands()){
-        if (!L->isLoopInvariant(op)){// && !isa<Constant>(op)){
+        if (!L->isLoopInvariant(op)){
              return false;
         }
     }
@@ -257,8 +257,11 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return false;
     }
 
-    if (AreAllOperandsLoopInvaraint(L, load_address_inst) && !loopHasStore && 
-        dominatesLoopExit(F, L, LoadAddress)
+    // SEGFAULT CULPRIT!
+    // FIXME: slowly introduce each of the following conditions
+    if (L->isLoopInvariant(LoadAddress)
+        //&& !loopHasStore
+        //&& dominatesLoopExit(F, L, LoadAddress)
         ){
 
         return false;
@@ -326,6 +329,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             }
             worklist.insert(&*i);
         }
+
         updateStats(hasLoad, hasStore, hasCall);
 
         //work with the worklist;
