@@ -224,6 +224,36 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
     return true;
 }
 
+static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
+    //no possible stores to addr in L
+    for(auto U : LoadAddress->users()){  // U is of type User*
+        if (auto InsThatUsesThisLoad = dyn_cast<Instruction>(U)){
+            //Use within this loop
+            if (L->contains(InsThatUsesThisLoad)){
+                //FIXME: Double check if  InsThatUsesThisLoad is correct as a
+                //function parameter
+                /*
+               if (isa<GlobalVariable>(InsThatUsesThisLoad)
+                   || isa<AllocaInst>(InsThatUsesThisLoad)
+                   ){
+                    //safe 
+                    continue;
+               }*/
+
+                if (isa<LoadInst>(InsThatUsesThisLoad) || isa<StoreInst>(InsThatUsesThisLoad)){
+                    return false;
+                }
+            }
+        }
+
+        else {
+            return false;
+        }
+    }
+
+    //after all of this - this is a safe load
+    return true;
+}
 
 static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAddress, bool loopHasStore){
     /* Determines whether an instruction can be moved out of a loop
@@ -236,22 +266,10 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
 
     Instruction* load_address_inst = dyn_cast<Instruction>(LoadAddress);
 
-    if (isa<GlobalVariable>(LoadAddress)){
-        //no possible stores to addr in L
-        for(auto U : LoadAddress->users()){  // U is of type User*
-            if (auto InsThatUsesThisLoad = dyn_cast<Instruction>(U)){
-                //if (L->contains(InsThatUsesThisLoad) && isa<StoreInst>(InsThatUsesThisLoad)){
-                if (isa<StoreInst>(InsThatUsesThisLoad)){
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-
-        return false;
+    if (isa<GlobalVariable>(LoadAddress) && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
+        //return false;
         //FIXME: there is a segmentation fault
-        //return true;
+        return true;
     }
 
     if (isa<AllocaInst>(LoadAddress)){
