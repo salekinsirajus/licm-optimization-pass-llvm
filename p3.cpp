@@ -182,11 +182,64 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
      * */
     for (auto &op: I->operands()){
         if (!L->isLoopInvariant(op) && !isa<Constant>(op)){
-             return false; 
+             return false;
         }
     }
 
     return true;
+}
+
+static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
+    /* How the fuck do I know that??
+     * */
+    SmallVector<BasicBlock *, 8> ExitBlocks;
+    L->getExitBlocks(ExitBlocks);
+
+    if (ExitBlocks.empty()){
+        //FIXME: is this possible?? and if so should it be true or false
+        //if there is no loop exits, it's an infinite loop. Does it dominate?
+        return true;
+    }
+
+    const Instruction* i = dyn_cast<Instruction>(V);
+    DominatorTreeBase<BasicBlock,false> *DT=nullptr;
+    DT = new DominatorTreeBase<BasicBlock,false>();
+    DT->recalculate(*F);
+    for (auto *bb: ExitBlocks){
+        if (!DT->dominates(i->getParent(), bb)){
+            return false;
+        }
+    }
+    return true;
+}
+
+
+static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAddress, bool loopHasStore){
+    /* Determines whether an instruction can be moved out of a loop
+     * */
+    if (I->isVolatile()){
+        printf("volatile load. cant move\n");
+        return false;
+    }
+
+    auto *LI = dyn_cast<LoadInst>(I->getOperand(0));
+    if (isa<GlobalVariable>(LoadAddress) || isa<AllocaInst>(LoadAddress)){
+        //&& (isa<Constant>(LoadAddress))
+        //no possible stores to addr in L
+        //addr is a GlobalVariable and there are no possible stores to addr in L)
+        printf("is a global variable");
+        return true;
+    }
+
+    Instruction* load_address_inst = dyn_cast<Instruction>(LoadAddress);
+    if (AreAllOperandsLoopInvaraint(L, load_address_inst) && !loopHasStore &&
+        dominatesLoopExit(F, L, LoadAddress)
+        ){
+        printf("third case matches..\n");
+        return true;
+    }
+
+    return false;
 }
 
 static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
@@ -201,9 +254,9 @@ static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
     }
 }
 
-static void OptimizeLoop2(LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
+static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
     NumLoops++;
-   
+
     //FIXME: THIS IS PART OF THE LOOPINFOBASE!
     //Update: looks like everywhere in LLVM it is used based off of the Loop
     //object. So we will leave it like this until things break
@@ -215,14 +268,13 @@ static void OptimizeLoop2(LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
 
     //recursive call to optimize all the subloops
     for (auto subloop: L->getSubLoops()){
-        OptimizeLoop2(LIBase, subloop);
+        OptimizeLoop2(f, LIBase, subloop);
     }
 
-    bool changed, hasLoad, hasStore, hasCall;
+    bool changed, hasLoad, hasStore, hasCall, loopContainsStore=false;
     std::set<Instruction*> worklist;
 
     for (BasicBlock *bb: L->blocks()){
-        //printf("\n========================BEGIN BB===========================\n");
         changed  = hasLoad  = hasStore = hasCall  = false;
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
             if (isa<LoadInst>(&*i)){
@@ -230,6 +282,7 @@ static void OptimizeLoop2(LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
             }
             if (isa<StoreInst>(&*i)){
                 hasStore = true;
+                loopContainsStore = true;
             }
             if (isa<CallInst>(&*i)){
                 hasCall = true;
@@ -241,27 +294,29 @@ static void OptimizeLoop2(LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
         //work with the worklist;
         while (worklist.size() > 0){
             changed = false;
-            // pull one instruction out of worklist
-            // see if any of its operands are loopinvariant
-            // if not remove them
             Instruction* i = *worklist.begin();
             worklist.erase(i);
-            //i->print(errs());
 
-            //if (L->hasLoopInvariantOperands(i)){
             if (AreAllOperandsLoopInvaraint(L, i)){
                 L->makeLoopInvariant(i, changed);
                 if (changed) {
-                    //printf(" <-- succssfully moved out.\n");
-                    //i->print(errs());
                     LICMBasic++;
                     continue;
                 }
-            //printf(" <-- considered, but no.\n");
             }
-            //printf(" <-- did not consider.\n");
+            else {
+                if (isa<LoadInst>(i)){
+                    //Implement LoadHoist
+                    Value* addr = i->getOperand(0); // address for Load instruction
+                    if (CanMoveOutofLoop(f, L, i, addr, loopContainsStore)){
+                        printf("Time to move it out.");
+                        //hoistInstructionToPreheader(i, PH);
+                        //LICMLoadHoist++;
+                        //Move to PH
+                    }
+                }
+            }
         }
-        //printf("\n========================END   BB===========================\n");
     }
 }
 
@@ -284,7 +339,7 @@ static void RunLICMBasic(Module *M){
         //LI->print(errs());
 
         for(auto li: *LI) {
-            OptimizeLoop2(LI, li);
+            OptimizeLoop2(&F, LI, li);
         }
     }
 }
