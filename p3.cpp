@@ -226,28 +226,15 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
 
 static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
     //no possible stores to addr in L
-    for(auto U : LoadAddress->users()){  // U is of type User*
-        if (auto InsThatUsesThisLoad = dyn_cast<Instruction>(U)){
-            //Use within this loop
-            if (L->contains(InsThatUsesThisLoad)){
-                //FIXME: Double check if  InsThatUsesThisLoad is correct as a
-                //function parameter
-                /*
-               if (isa<GlobalVariable>(InsThatUsesThisLoad)
-                   || isa<AllocaInst>(InsThatUsesThisLoad)
-                   ){
-                    //safe 
-                    continue;
-               }*/
-
-                if (isa<LoadInst>(InsThatUsesThisLoad) || isa<StoreInst>(InsThatUsesThisLoad)){
+    for (auto *bb: L->blocks()){
+        for (auto &i: *bb){
+            if (isa<StoreInst>(i)){
+                // This is the least careful approeach
+                if (LoadAddress == i.getOperand(1)){
+                    i.print(errs());
                     return false;
-                }
+                } // for store 
             }
-        }
-
-        else {
-            return false;
         }
     }
 
@@ -264,9 +251,9 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return false;
     }
 
-    Instruction* load_address_inst = dyn_cast<Instruction>(LoadAddress);
-
-    if (isa<GlobalVariable>(LoadAddress) && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
+    bool no_store_in_loop = NoPossibleStoresToAddressInLoop(L, LoadAddress);
+    //printf("Result of NoPossibleStoresToAddressInLoop: %d\n", no_store_in_loop);
+    if (isa<GlobalVariable>(LoadAddress) && (no_store_in_loop)){
         //return false;
         //FIXME: there is a segmentation fault
         return true;
