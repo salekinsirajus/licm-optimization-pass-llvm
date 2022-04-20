@@ -25,6 +25,7 @@
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Dominators.h"
 
 
 using namespace llvm;
@@ -177,6 +178,22 @@ static llvm::Statistic NumLoopsWithCall = {"", "NumLoopsWithCall", "subset of lo
 
 /* Functionality Implementation */
 
+static void hoistInstructionToPreheader(Instruction* I, BasicBlock* PreHeader){
+    /* Move an instruction to the PreHeader*/
+    printf("=============START=================\n");
+    printf("Moving an instruction to preheader\n");
+    I->print(errs());
+    printf("\n");
+    PreHeader->print(errs());
+    printf("\n");
+    printf("=============END====================\n");
+    Instruction *dst = PreHeader->getTerminator();
+    I->moveBefore(dst);
+    printf("After Move preheader\n");
+    PreHeader->print(errs());
+    printf("****************** DONE ************\n");
+}
+
 static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
     /* Alternative implementation of hasLoopInvariantOperands
      * */
@@ -192,7 +209,7 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
 static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
     /* How the fuck do I know that??
      * */
-    SmallVector<BasicBlock *, 8> ExitBlocks;
+    SmallVector<BasicBlock *, 20> ExitBlocks;
     L->getExitBlocks(ExitBlocks);
 
     if (ExitBlocks.empty()){
@@ -201,12 +218,20 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
         return true;
     }
 
-    const Instruction* i = dyn_cast<Instruction>(V);
-    DominatorTreeBase<BasicBlock,false> *DT=nullptr;
-    DT = new DominatorTreeBase<BasicBlock,false>();
+    Instruction* i = dyn_cast<Instruction>(V);
+    DominatorTree *DT=nullptr;
+    DT = new DominatorTree();
+
     DT->recalculate(*F);
     for (auto *bb: ExitBlocks){
-        if (!DT->dominates(i->getParent(), bb)){
+        printf("exit block\n"); 
+        //bb->print(errs());
+        //bool result = DT->dominates(i, bb);
+        bool result = DT->dominates(i->getParent(), bb);
+        printf("result of dominates check: %d\n", result);
+
+        if (!result){
+            printf("SHOULD ABORT!");
             return false;
         }
     }
@@ -237,6 +262,8 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         ){
         printf("third case matches..\n");
         return true;
+    } else {
+        printf("Did not match third case.\n");
     }
 
     return false;
@@ -310,9 +337,11 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
                     Value* addr = i->getOperand(0); // address for Load instruction
                     if (CanMoveOutofLoop(f, L, i, addr, loopContainsStore)){
                         printf("Time to move it out.");
-                        //hoistInstructionToPreheader(i, PH);
-                        //LICMLoadHoist++;
+                        hoistInstructionToPreheader(i, PH);
+                        LICMLoadHoist++;
                         //Move to PH
+                    } else {
+                        printf("CanNotMoveOutofLoop \n");
                     }
                 }
             }
