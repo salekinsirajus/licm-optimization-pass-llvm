@@ -311,16 +311,13 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
     return false;
 }
 
-static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
+static void updateStats(bool hasLoad, bool hasStore){
     if (!hasStore && hasLoad){
         NumLoopsNoStoreWithLoad++;
     } else if (!hasLoad){
         NumLoopsNoLoad++;
     } else if (!hasStore){
         NumLoopsNoStore++;
-    } else if (hasCall){
-        NumLoopsWithCall++;
-        NumLoopsWithCall++; //testing whether my numbers are too high or low
     }
 }
 
@@ -354,8 +351,9 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
     bool changed, hasLoad, hasStore, hasCall, loopContainsStore=false;
     std::set<Instruction*> worklist;
 
+    hasCall  = false; 
     for (BasicBlock *bb: L->blocks()){
-        changed  = hasLoad  = hasStore = hasCall  = false;
+        changed  = hasLoad  = hasStore = false;
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
             if (isa<LoadInst>(&*i)){
                 hasLoad = true;
@@ -370,7 +368,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             worklist.insert(&*i);
         }
 
-        updateStats(hasLoad, hasStore, hasCall);
+        updateStats(hasLoad, hasStore);
 
         //work with the worklist;
         while (worklist.size() > 0){
@@ -401,6 +399,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             }
         }
     }
+    if (hasCall) {NumLoopsWithCall++;}
 }
 
 static void RunLICMBasic(Module *M){
