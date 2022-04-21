@@ -224,6 +224,22 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
     return true;
 }
 
+
+static bool NoPossibleStoresToAnyAddressInLoop(Loop *L){
+
+    //no possible stores to addr in L
+    for (auto *bb: L->blocks()){
+        for (auto &i: *bb){
+            if (isa<StoreInst>(i)){
+                return false;
+           }
+        }
+    }
+
+    //after all of this - this is a safe load
+    return true;
+}
+
 static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
     //no possible stores to addr in L
     for (auto *bb: L->blocks()){
@@ -250,6 +266,7 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
 
 static bool AllocaNotInLoop(Loop *L, Value *Addr){
     Instruction *x = dyn_cast<AllocaInst>(Addr);
+    BasicBlock *parent = x->getParent();
 
     if (L->contains(parent)){
         return false;
@@ -285,7 +302,7 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
     // SEGFAULT CULPRIT!
     // FIXME: slowly introduce each of the following conditions
     if (L->isLoopInvariant(LoadAddress)
-        && !loopHasStore
+        && NoPossibleStoresToAnyAddressInLoop(L) 
         && dominatesLoopExit(F, L, LoadAddress)
         ){
 
