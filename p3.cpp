@@ -299,7 +299,6 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return true;
     }
    
-    /*
     // SEGFAULT CULPRIT!
     // FIXME: slowly introduce each of the following conditions
     if (L->isLoopInvariant(LoadAddress)
@@ -309,7 +308,6 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
 
         return true;
     } 
-    */
 
     return false;
 }
