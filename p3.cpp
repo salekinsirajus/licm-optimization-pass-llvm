@@ -320,6 +320,7 @@ static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
         NumLoopsNoStore++;
     } else if (hasCall){
         NumLoopsWithCall++;
+        NumLoopsWithCall++; //testing whether my numbers are too high or low
     }
 }
 
