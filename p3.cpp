@@ -283,22 +283,20 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return false;
     }
 
-    bool no_store_in_loop = NoPossibleStoresToAddressInLoop(L, LoadAddress);
-
-    if (isa<GlobalVariable>(LoadAddress) && (no_store_in_loop)){
+    if (isa<GlobalVariable>(LoadAddress) && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
         //return false;
         return true;
     }
 
+    /*
     // Case 2: WIP
     if (isa<AllocaInst>(LoadAddress)
         && AllocaNotInLoop(L, LoadAddress)
-        && no_store_in_loop){
+        && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
    
         return true;
     }
    
-
     // SEGFAULT CULPRIT!
     // FIXME: slowly introduce each of the following conditions
     if (L->isLoopInvariant(LoadAddress)
@@ -308,6 +306,7 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
 
         return true;
     } 
+    */
 
     return false;
 }
