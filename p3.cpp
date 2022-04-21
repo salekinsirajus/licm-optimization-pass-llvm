@@ -248,16 +248,8 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
     return true;
 }
 
-static bool AllocaNotInLoop(Loop *L, Value *Addr ){
-    return false;
+static bool AllocaNotInLoop(Loop *L, Value *Addr){
     Instruction *x = dyn_cast<AllocaInst>(Addr);
-    BasicBlock *parent = x->getParent();
-    printf("\n========== Parent of Alloca =========\n");
-    parent->print(errs());
-    printf("\n");
-    printf("The alloca: \n");
-    x->print(errs());
-    printf("======================DONE================\n");
 
     if (L->contains(parent)){
         return false;
