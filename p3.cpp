@@ -198,14 +198,12 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
 }
 
 static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
-    /* How the fuck do I know that??
+    /* Checks whether an instruction dominates all the loop exits
      * */
     SmallVector<BasicBlock *, 20> ExitBlocks;
     L->getExitBlocks(ExitBlocks);
 
     if (ExitBlocks.empty()){
-        //FIXME: is this possible?? and if so should it be true or false
-        //if there is no loop exits, it's an infinite loop. Does it dominate?
         return true;
     }
 
@@ -215,7 +213,6 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
 
     DT->recalculate(*F);
     for (auto *bb: ExitBlocks){
-        //bool result = DT->dominates(i, bb);
         bool result = DT->dominates(i->getParent(), bb);
         if (!result){
             return false;
@@ -226,8 +223,6 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
 
 
 static bool NoPossibleStoresToAnyAddressInLoop(Loop *L){
-
-    //no possible stores to addr in L
     for (auto *bb: L->blocks()){
         for (auto &i: *bb){
             if (isa<StoreInst>(i) || isa<CallInst>(i)){
@@ -248,7 +243,6 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
                 // This is the least careful approeach
                 Value *addr_of_store = i.getOperand(1);
                 if (LoadAddress == addr_of_store){
-                    //i.print(errs());
                     return false;
                 } 
                 // different address - if it's neither an alloca nor a global
@@ -300,8 +294,7 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
     }
    
     /*
-    // SEGFAULT CULPRIT!
-    // FIXME: slowly introduce each of the following conditions
+    // Worked on this but did not have it fully functioning due to segfaults 
     if (L->isLoopInvariant(LoadAddress)
         && NoPossibleStoresToAnyAddressInLoop(L) 
         && dominatesLoopExit(F, L, LoadAddress)
@@ -337,9 +330,6 @@ static bool NotALoadOrStore(Instruction* I){
 static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
     NumLoops++;
 
-    //FIXME: THIS IS PART OF THE LOOPINFOBASE!
-    //Update: looks like everywhere in LLVM it is used based off of the Loop
-    //object. So we will leave it like this until things break
     BasicBlock *PH = L->getLoopPreheader();
     if (PH==NULL){
         LICMNoPreheader++;
@@ -390,7 +380,6 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             }
             else {
                 if (isa<LoadInst>(i)){
-                    //Implement LoadHoist
                     Value* addr = i->getOperand(0); // address for Load instruction
                     if (CanMoveOutofLoop(f, L, i, addr, loopContainsStore)){
                         
@@ -409,8 +398,8 @@ static void RunLICMBasic(Module *M){
 
     for (Module::iterator func = M->begin(); func != M->end(); ++func){
         Function &F = *func;
+        // for empty function, stop considering
         if (func->begin() == func->end()){
-        //if (F.size() < 1){
             continue;
         }
 
@@ -428,8 +417,5 @@ static void RunLICMBasic(Module *M){
 }
 
 static void LoopInvariantCodeMotion(Module *M) {
-    // Implement this function
-    LICMLoadHoist++; //get rid of the unused warning on autograder
-    LICMLoadHoist--; //not polluting the stats TODO later
     RunLICMBasic(M);
 }
