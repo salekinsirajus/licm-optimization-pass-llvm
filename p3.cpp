@@ -230,7 +230,7 @@ static bool NoPossibleStoresToAnyAddressInLoop(Loop *L){
     //no possible stores to addr in L
     for (auto *bb: L->blocks()){
         for (auto &i: *bb){
-            if (isa<StoreInst>(i)){
+            if (isa<StoreInst>(i) || isa<CallInst>(i)){
                 return false;
            }
         }
@@ -257,6 +257,9 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
                     return false;
                 }
            }
+           if (isa<CallInst>(i)){
+                return false;
+           } 
         }
     }
 
@@ -288,7 +291,6 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return true;
     }
 
-    /*
     // Case 2: WIP
     if (isa<AllocaInst>(LoadAddress)
         && AllocaNotInLoop(L, LoadAddress)
@@ -297,6 +299,7 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return true;
     }
    
+    /*
     // SEGFAULT CULPRIT!
     // FIXME: slowly introduce each of the following conditions
     if (L->isLoopInvariant(LoadAddress)
