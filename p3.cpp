@@ -253,6 +253,7 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
      * */
 
     // DONE - Case 1
+    return false;
     if (I->isVolatile()){
         return false;
     }
