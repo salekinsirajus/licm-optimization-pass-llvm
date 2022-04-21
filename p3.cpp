@@ -263,16 +263,6 @@ static bool AllocaNotInLoop(Loop *L, Value *Addr ){
         return false;
     }
     return true;
-    for (auto *bb: L->blocks()){
-        for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
-        //for (auto &i: *bb){
-            if (isa<AllocaInst>(&*i) && &*i == x){
-                (&*i)->print(errs());
-                return false; 
-            }
-        }
-    }
-    return true;
 }
 
 static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAddress, bool loopHasStore){
@@ -291,25 +281,23 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return true;
     }
 
-    /*
     // Case 2: WIP
     if (isa<AllocaInst>(LoadAddress)
-        //&& !L->contains(dyn_cast<Instruction>(LoadAddress))
         && AllocaNotInLoop(L, LoadAddress)
         && no_store_in_loop){
-        //It produces strange errors. Let's check each cond one by one
-        return false;
+   
+        return true;
     }
-    */
+   
 
     // SEGFAULT CULPRIT!
     // FIXME: slowly introduce each of the following conditions
     if (L->isLoopInvariant(LoadAddress)
-        //&& !loopHasStore
-        //&& dominatesLoopExit(F, L, LoadAddress)
+        && !loopHasStore
+        && dominatesLoopExit(F, L, LoadAddress)
         ){
 
-        return false;
+        return true;
     } 
 
     return false;
