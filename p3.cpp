@@ -198,14 +198,12 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
 }
 
 static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
-    /* How the fuck do I know that??
+    /* Checks whether an instruction dominates all the loop exits
      * */
     SmallVector<BasicBlock *, 20> ExitBlocks;
     L->getExitBlocks(ExitBlocks);
 
     if (ExitBlocks.empty()){
-        //FIXME: is this possible?? and if so should it be true or false
-        //if there is no loop exits, it's an infinite loop. Does it dominate?
         return true;
     }
 
@@ -215,12 +213,25 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
 
     DT->recalculate(*F);
     for (auto *bb: ExitBlocks){
-        //bool result = DT->dominates(i, bb);
         bool result = DT->dominates(i->getParent(), bb);
         if (!result){
             return false;
         }
     }
+    return true;
+}
+
+
+static bool NoPossibleStoresToAnyAddressInLoop(Loop *L){
+    for (auto *bb: L->blocks()){
+        for (auto &i: *bb){
+            if (isa<StoreInst>(i) || isa<CallInst>(i)){
+                return false;
+           }
+        }
+    }
+
+    //after all of this - this is a safe load
     return true;
 }
 
@@ -232,7 +243,6 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
                 // This is the least careful approeach
                 Value *addr_of_store = i.getOperand(1);
                 if (LoadAddress == addr_of_store){
-                    //i.print(errs());
                     return false;
                 } 
                 // different address - if it's neither an alloca nor a global
@@ -241,10 +251,23 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
                     return false;
                 }
            }
+           if (isa<CallInst>(i)){
+                return false;
+           } 
         }
     }
 
     //after all of this - this is a safe load
+    return true;
+}
+
+static bool AllocaNotInLoop(Loop *L, Value *Addr){
+    Instruction *x = dyn_cast<AllocaInst>(Addr);
+    BasicBlock *parent = x->getParent();
+
+    if (L->contains(parent)){
+        return false;
+    }
     return true;
 }
 
@@ -257,41 +280,40 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
         return false;
     }
 
-    bool no_store_in_loop = NoPossibleStoresToAddressInLoop(L, LoadAddress);
-    //printf("Result of NoPossibleStoresToAddressInLoop: %d\n", no_store_in_loop);
-    if (isa<GlobalVariable>(LoadAddress) && (no_store_in_loop)){
+    if (isa<GlobalVariable>(LoadAddress) && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
         //return false;
-        //FIXME: there is a segmentation fault
         return true;
     }
 
-    if (isa<AllocaInst>(LoadAddress)){
-        //to be implemented
-        return false;
+    // Case 2: WIP
+    if (isa<AllocaInst>(LoadAddress)
+        && AllocaNotInLoop(L, LoadAddress)
+        && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
+   
+        return true;
     }
-
-    // SEGFAULT CULPRIT!
-    // FIXME: slowly introduce each of the following conditions
+   
+    /*
+    // Worked on this but did not have it fully functioning due to segfaults 
     if (L->isLoopInvariant(LoadAddress)
-        //&& !loopHasStore
-        //&& dominatesLoopExit(F, L, LoadAddress)
+        && NoPossibleStoresToAnyAddressInLoop(L) 
+        && dominatesLoopExit(F, L, LoadAddress)
         ){
 
-        return false;
+        return true;
     } 
+    */
 
     return false;
 }
 
-static void updateStats(bool hasLoad, bool hasStore, bool hasCall){
+static void updateStats(bool hasLoad, bool hasStore){
     if (!hasStore && hasLoad){
         NumLoopsNoStoreWithLoad++;
     } else if (!hasLoad){
         NumLoopsNoLoad++;
     } else if (!hasStore){
         NumLoopsNoStore++;
-    } else if (hasCall){
-        NumLoopsWithCall++;
     }
 }
 
@@ -308,9 +330,6 @@ static bool NotALoadOrStore(Instruction* I){
 static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
     NumLoops++;
 
-    //FIXME: THIS IS PART OF THE LOOPINFOBASE!
-    //Update: looks like everywhere in LLVM it is used based off of the Loop
-    //object. So we will leave it like this until things break
     BasicBlock *PH = L->getLoopPreheader();
     if (PH==NULL){
         LICMNoPreheader++;
@@ -325,8 +344,9 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
     bool changed, hasLoad, hasStore, hasCall, loopContainsStore=false;
     std::set<Instruction*> worklist;
 
+    hasCall  = false; 
     for (BasicBlock *bb: L->blocks()){
-        changed  = hasLoad  = hasStore = hasCall  = false;
+        changed  = hasLoad  = hasStore = false;
         for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i){
             if (isa<LoadInst>(&*i)){
                 hasLoad = true;
@@ -341,7 +361,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             worklist.insert(&*i);
         }
 
-        updateStats(hasLoad, hasStore, hasCall);
+        updateStats(hasLoad, hasStore);
 
         //work with the worklist;
         while (worklist.size() > 0){
@@ -360,7 +380,6 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             }
             else {
                 if (isa<LoadInst>(i)){
-                    //Implement LoadHoist
                     Value* addr = i->getOperand(0); // address for Load instruction
                     if (CanMoveOutofLoop(f, L, i, addr, loopContainsStore)){
                         
@@ -372,14 +391,15 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             }
         }
     }
+    if (hasCall) {NumLoopsWithCall++;}
 }
 
 static void RunLICMBasic(Module *M){
 
     for (Module::iterator func = M->begin(); func != M->end(); ++func){
         Function &F = *func;
+        // for empty function, stop considering
         if (func->begin() == func->end()){
-        //if (F.size() < 1){
             continue;
         }
 
@@ -397,8 +417,5 @@ static void RunLICMBasic(Module *M){
 }
 
 static void LoopInvariantCodeMotion(Module *M) {
-    // Implement this function
-    LICMLoadHoist++; //get rid of the unused warning on autograder
-    LICMLoadHoist--; //not polluting the stats TODO later
     RunLICMBasic(M);
 }
