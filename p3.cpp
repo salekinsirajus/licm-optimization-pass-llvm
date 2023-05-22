@@ -186,8 +186,7 @@ static void hoistInstructionToPreheader(Instruction* I, BasicBlock* PreHeader){
 }
 
 static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
-    /* Alternative implementation of hasLoopInvariantOperands
-     * */
+    /* Alternative implementation of hasLoopInvariantOperands */
     for (auto &op: I->operands()){
         if (!L->isLoopInvariant(op)){
              return false;
@@ -198,8 +197,7 @@ static bool AreAllOperandsLoopInvaraint(Loop* L, Instruction* I){
 }
 
 static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
-    /* Checks whether an instruction dominates all the loop exits
-     * */
+    /* Checks whether an instruction dominates all the loop exits */
     SmallVector<BasicBlock *, 20> ExitBlocks;
     L->getExitBlocks(ExitBlocks);
 
@@ -218,6 +216,7 @@ static bool dominatesLoopExit(Function *F, Loop *L, Value* V){
             return false;
         }
     }
+
     return true;
 }
 
@@ -240,7 +239,6 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
     for (auto *bb: L->blocks()){
         for (auto &i: *bb){
             if (isa<StoreInst>(i)){
-                // This is the least careful approeach
                 Value *addr_of_store = i.getOperand(1);
                 if (LoadAddress == addr_of_store){
                     return false;
@@ -251,6 +249,7 @@ static bool NoPossibleStoresToAddressInLoop(Loop *L, Value* LoadAddress){
                     return false;
                 }
            }
+
            if (isa<CallInst>(i)){
                 return false;
            } 
@@ -268,6 +267,7 @@ static bool AllocaNotInLoop(Loop *L, Value *Addr){
     if (L->contains(parent)){
         return false;
     }
+
     return true;
 }
 
@@ -275,17 +275,16 @@ static bool CanMoveOutofLoop(Function *F, Loop *L, Instruction* I, Value* LoadAd
     /* Determines whether an instruction can be moved out of a loop
      * */
 
-    // DONE - Case 1
+    // Case 1: instruction marked volatile - cannot be moved out of the loop 
     if (I->isVolatile()){
         return false;
     }
 
     if (isa<GlobalVariable>(LoadAddress) && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
-        //return false;
+
         return true;
     }
 
-    // Case 2: WIP
     if (isa<AllocaInst>(LoadAddress)
         && AllocaNotInLoop(L, LoadAddress)
         && NoPossibleStoresToAddressInLoop(L, LoadAddress)){
@@ -327,7 +326,7 @@ static bool NotALoadOrStore(Instruction* I){
     return true;
 }
 
-static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
+static void OptimizeLoop(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, Loop *L){
     NumLoops++;
 
     BasicBlock *PH = L->getLoopPreheader();
@@ -338,7 +337,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
 
     //recursive call to optimize all the subloops
     for (auto subloop: L->getSubLoops()){
-        OptimizeLoop2(f, LIBase, subloop);
+        OptimizeLoop(f, LIBase, subloop);
     }
 
     bool changed, hasLoad, hasStore, hasCall, loopContainsStore=false;
@@ -378,6 +377,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
                     }
                 }
             }
+
             else {
                 if (isa<LoadInst>(i)){
                     Value* addr = i->getOperand(0); // address for Load instruction
@@ -391,6 +391,7 @@ static void OptimizeLoop2(Function *f, LoopInfoBase<BasicBlock, Loop> *LIBase, L
             }
         }
     }
+
     if (hasCall) {NumLoopsWithCall++;}
 }
 
@@ -411,7 +412,7 @@ static void RunLICMBasic(Module *M){
         LI->analyze(*DT); // calculate loop info
 
         for(auto li: *LI) {
-            OptimizeLoop2(&F, LI, li);
+            OptimizeLoop(&F, LI, li);
         }
     }
 }
