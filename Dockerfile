@@ -1,6 +1,6 @@
 # ECE 466/566 container for easy use on Windows, Linux, MacOS
 
-FROM ubuntu:21.10
+FROM ubuntu:23.04
 
 LABEL maintainer="jtuck@ncsu.edu"
 
@@ -16,7 +16,8 @@ RUN apt-get update \
       cmake \
       rsync \
       tar \
-      python \
+      python3 \
+      python-is-python3\
       pip \
       zlib1g-dev \
       bison \
@@ -36,7 +37,8 @@ RUN apt-get install -y time \
     vim \
     && apt-get clean
 
-RUN pip install lit
+RUN apt install -y pipx
+RUN pipx install lit
 
 ADD . /ece566
 ADD . /build
